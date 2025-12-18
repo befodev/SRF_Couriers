@@ -30,7 +30,7 @@ public class DeliveryPointRepository : IDeliveryPointRepository
             .ToListAsync();
     }
 
-    public async Task<DeliveryPoint?> GetByDeliveryAndSequenceAsync(long deliveryId, int sequence)
+    public async Task<DeliveryPoint?> GetByDeliveryIdAndSequenceAsync(long deliveryId, int sequence)
     {
         return await _context.DeliveryPoints
             .Include(dp => dp.DeliveryPointProducts)

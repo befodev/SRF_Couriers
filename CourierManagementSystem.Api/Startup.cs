@@ -15,7 +15,6 @@ namespace CourierManagementSystem.Api
     {
         private readonly WebApplicationBuilder _builder;
 
-
         public Startup(WebApplicationBuilder builder)
         {
             _builder = builder;
