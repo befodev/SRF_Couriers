@@ -11,14 +11,5 @@ public class VehicleDto
     public decimal MaxVolume { get; set; }
 
     public static VehicleDto From(Vehicle vehicle)
-    {
-        return new VehicleDto
-        {
-            Id = vehicle.Id,
-            Brand = vehicle.Brand,
-            LicensePlate = vehicle.LicensePlate,
-            MaxWeight = vehicle.MaxWeight,
-            MaxVolume = vehicle.MaxVolume
-        };
-    }
+        => vehicle.ToDto();
 }

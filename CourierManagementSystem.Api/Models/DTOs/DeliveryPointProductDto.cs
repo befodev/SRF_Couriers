@@ -9,12 +9,5 @@ public class DeliveryPointProductDto
     public int Quantity { get; set; }
 
     public static DeliveryPointProductDto From(DeliveryPointProduct deliveryPointProduct)
-    {
-        return new DeliveryPointProductDto
-        {
-            Id = deliveryPointProduct.Id,
-            Product = ProductDto.From(deliveryPointProduct.Product),
-            Quantity = deliveryPointProduct.Quantity
-        };
-    }
+        => deliveryPointProduct.ToDto();
 }

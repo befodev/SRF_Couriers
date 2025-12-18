@@ -1,3 +1,4 @@
+using CourierManagementSystem.Api.Models.DTOs;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -25,5 +26,16 @@ namespace CourierManagementSystem.Api.Models.Entities
         [Column("quantity")]
         [Required]
         public int Quantity { get; set; }
+
+
+        public DeliveryPointProductDto ToDto()
+        {
+            return new DeliveryPointProductDto
+            {
+                Id = Id,
+                Product = Product.ToDto(),
+                Quantity = Quantity
+            };
+        }
     }
 }

@@ -418,7 +418,7 @@ public class DeliveryService : IDeliveryService
             }
 
             totalWeight += product.Weight * kvp.Value;
-            totalVolume += product.GetVolume() * kvp.Value;
+            totalVolume += product.Volume * kvp.Value;
         }
 
         decimal existingWeight = 0m;
@@ -444,7 +444,7 @@ public class DeliveryService : IDeliveryService
                 foreach (var product in point.DeliveryPointProducts)
                 {
                     existingWeight += product.Product.Weight * product.Quantity;
-                    existingVolume += product.Product.GetVolume() * product.Quantity;
+                    existingVolume += product.Product.Volume * product.Quantity;
                 }
             }
         }

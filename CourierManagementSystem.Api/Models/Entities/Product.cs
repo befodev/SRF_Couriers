@@ -1,3 +1,4 @@
+using CourierManagementSystem.Api.Models.DTOs;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -30,9 +31,23 @@ namespace CourierManagementSystem.Api.Models.Entities
         [Required]
         public decimal Height { get; set; }
 
-        public decimal GetVolume()
+
+        [NotMapped]
+        public decimal Volume => Length * Width * Height / 1000000m;
+
+
+        public ProductDto ToDto()
         {
-            return Length * Width * Height / 1000000m; // convert cm³ to m³
+            return new ProductDto
+            {
+                Id = Id,
+                Name = Name,
+                Weight = Weight,
+                Length = Length,
+                Width = Width,
+                Height = Height,
+                Volume = Volume
+            };
         }
     }
 }

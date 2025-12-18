@@ -4,7 +4,7 @@ namespace CourierManagementSystem.Api.Repositories;
 
 public interface IDeliveryPointRepository
 {
-    Task<List<DeliveryPoint>> GetByDeliveryOrderBySequenceAsync(long deliveryId);
+    Task<List<DeliveryPoint>> GetByDeliveryIdOrderedBySequenceAsync(long deliveryId);
     Task<List<DeliveryPoint>> GetByDeliveryIdAsync(long deliveryId);
     Task<DeliveryPoint?> GetByDeliveryAndSequenceAsync(long deliveryId, int sequence);
     Task<int?> GetMaxSequenceByDeliveryIdAsync(long deliveryId);

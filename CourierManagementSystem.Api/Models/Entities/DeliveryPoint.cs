@@ -1,7 +1,8 @@
+using CourierManagementSystem.Api.Models.DTOs;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Microsoft.EntityFrameworkCore;
 
 namespace CourierManagementSystem.Api.Models.Entities
 {
@@ -32,5 +33,20 @@ namespace CourierManagementSystem.Api.Models.Entities
         public decimal Longitude { get; set; }
 
         public ICollection<DeliveryPointProduct> DeliveryPointProducts { get; set; } = new List<DeliveryPointProduct>();
+
+
+        public DeliveryPointDto ToDto()
+        {
+            return new DeliveryPointDto
+            {
+                Id = Id,
+                Sequence = Sequence,
+                Latitude = Latitude,
+                Longitude = Longitude,
+                Products = DeliveryPointProducts
+                    .Select(dpp => dpp.ToDto())
+                    .ToList()
+            };
+        }
     }
 }

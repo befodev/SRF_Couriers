@@ -10,15 +10,6 @@ public class UserDto
     public UserRole Role { get; set; }
     public DateTime CreatedAt { get; set; }
 
-    public static UserDto From(User user)
-    {
-        return new UserDto
-        {
-            Id = user.Id,
-            Login = user.Login,
-            Name = user.Name,
-            Role = user.Role,
-            CreatedAt = user.CreatedAt
-        };
-    }
+    public static UserDto From(User user) 
+        => user.ToDto();
 }

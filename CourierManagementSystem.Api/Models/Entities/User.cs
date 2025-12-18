@@ -1,3 +1,4 @@
+using CourierManagementSystem.Api.Models.DTOs;
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -31,6 +32,19 @@ namespace CourierManagementSystem.Api.Models.Entities
         [Column("created_at")]
         [Required]
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+
+        public UserDto ToDto()
+        {
+            return new UserDto
+            {
+                Id = Id,
+                Login = Login,
+                Name = Name,
+                Role = Role,
+                CreatedAt = CreatedAt
+            };
+        }
     }
 
     public enum UserRole

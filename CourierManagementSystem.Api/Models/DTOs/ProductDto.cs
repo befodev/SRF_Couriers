@@ -12,17 +12,6 @@ public class ProductDto
     public decimal Height { get; set; }
     public decimal Volume { get; set; }
 
-    public static ProductDto From(Product product)
-    {
-        return new ProductDto
-        {
-            Id = product.Id,
-            Name = product.Name,
-            Weight = product.Weight,
-            Length = product.Length,
-            Width = product.Width,
-            Height = product.Height,
-            Volume = product.GetVolume()
-        };
-    }
+    public static ProductDto From(Product product) 
+        => product.ToDto();
 }

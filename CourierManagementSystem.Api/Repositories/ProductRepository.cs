@@ -45,7 +45,7 @@ public class ProductRepository : IProductRepository
             .ContinueWith(task =>
             {
                 return task.Result
-                    .Where(p => p.GetVolume() <= maxVolume)
+                    .Where(p => p.Volume <= maxVolume)
                     .ToList();
             });
     }
@@ -57,7 +57,7 @@ public class ProductRepository : IProductRepository
             .ToListAsync();
 
         return products
-            .Where(p => p.GetVolume() <= maxVolume)
+            .Where(p => p.Volume <= maxVolume)
             .ToList();
     }
 

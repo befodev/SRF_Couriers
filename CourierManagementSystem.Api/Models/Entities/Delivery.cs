@@ -1,3 +1,4 @@
+using CourierManagementSystem.Api.Models.DTOs;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -53,6 +54,50 @@ namespace CourierManagementSystem.Api.Models.Entities
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
 
         public ICollection<DeliveryPoint> DeliveryPoints { get; set; } = new List<DeliveryPoint>();
+
+
+
+        [NotMapped]
+        public decimal TotalWeight => DeliveryPoints
+            .SelectMany(dp => dp.DeliveryPointProducts)
+            .Sum(dpp => dpp.Product.Weight * dpp.Quantity);
+
+        [NotMapped]
+        public decimal TotalVolume => DeliveryPoints
+            .SelectMany(dp => dp.DeliveryPointProducts)
+            .Sum(dpp => dpp.Product.Volume * dpp.Quantity);
+
+        [NotMapped]
+        public bool CanEdit => DeliveryDate > DateOnly.FromDateTime(DateTime.Now.AddDays(3));
+
+        [NotMapped]
+        public string DeliveryNumber => $"DEL-{DeliveryDate.Year}-{Id:D3}";
+
+
+        public DeliveryDto ToDto()
+        {
+            return new DeliveryDto
+            {
+                Id = Id,
+                DeliveryNumber = DeliveryNumber,
+                Courier = Courier?.ToDto(),
+                Vehicle = Vehicle?.ToDto(),
+                CreatedBy = CreatedBy.ToDto(),
+                DeliveryDate = DeliveryDate,
+                TimeStart = TimeStart,
+                TimeEnd = TimeEnd,
+                Status = Status,
+                CreatedAt = CreatedAt,
+                UpdatedAt = UpdatedAt,
+                DeliveryPoints = DeliveryPoints
+                    .OrderBy(dp => dp.Sequence)
+                    .Select(dp => dp.ToDto())
+                    .ToList(),
+                TotalWeight = TotalWeight,
+                TotalVolume = TotalVolume,
+                CanEdit = CanEdit
+            };
+        }
     }
 
     public enum DeliveryStatus

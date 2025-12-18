@@ -1,3 +1,4 @@
+using CourierManagementSystem.Api.Models.DTOs;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -27,5 +28,18 @@ namespace CourierManagementSystem.Api.Models.Entities
         [Column("max_volume", TypeName = "decimal(8,3)")]
         [Required]
         public decimal MaxVolume { get; set; }
+
+
+        public VehicleDto ToDto()
+        {
+            return new VehicleDto
+            {
+                Id = Id,
+                Brand = Brand,
+                LicensePlate = LicensePlate,
+                MaxWeight = MaxWeight,
+                MaxVolume = MaxVolume
+            };
+        }
     }
 }

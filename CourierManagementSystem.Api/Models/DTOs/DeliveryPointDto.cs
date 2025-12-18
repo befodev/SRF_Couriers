@@ -11,14 +11,5 @@ public class DeliveryPointDto
     public List<DeliveryPointProductDto> Products { get; set; } = new();
 
     public static DeliveryPointDto From(DeliveryPoint deliveryPoint)
-    {
-        return new DeliveryPointDto
-        {
-            Id = deliveryPoint.Id,
-            Sequence = deliveryPoint.Sequence,
-            Latitude = deliveryPoint.Latitude,
-            Longitude = deliveryPoint.Longitude,
-            Products = deliveryPoint.DeliveryPointProducts.Select(DeliveryPointProductDto.From).ToList()
-        };
-    }
+        => deliveryPoint.ToDto();
 }
