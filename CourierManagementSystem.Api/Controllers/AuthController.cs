@@ -2,7 +2,6 @@ using CourierManagementSystem.Api.Models.DTOs.Requests;
 using CourierManagementSystem.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace CourierManagementSystem.Api.Controllers;
 
@@ -11,10 +10,12 @@ namespace CourierManagementSystem.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserContextService _userContextService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserContextService userContextService)
     {
         _authService = authService;
+        _userContextService = userContextService;
     }
 
     [HttpPost("login")]
@@ -29,16 +30,7 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public IActionResult Debug()
     {
-        var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        var login = User.FindFirst(JwtRegisteredClaimNames.UniqueName)?.Value;
-        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-
-        return Ok(new
-        {
-            userId,
-            login,
-            role,
-            isAuthenticated = User.Identity?.IsAuthenticated ?? false
-        });
+        var response = _userContextService.GetUserDebugInfo(User);
+        return Ok(response);
     }
 }
