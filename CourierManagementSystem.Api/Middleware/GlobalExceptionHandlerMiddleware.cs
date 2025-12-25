@@ -10,6 +10,56 @@ public class GlobalExceptionHandlerMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionHandlerMiddleware> _logger;
 
+    private static readonly Dictionary<Type, (int statusCode, Func<Exception, object> body)> s_HandlerTable = new()
+    {
+        {
+            typeof(NotFoundException),
+            (
+                (int)HttpStatusCode.NotFound,
+                ex => new ErrorResponse
+                {
+                    Code = "NOT_FOUND",
+                    Message = ex.Message,
+                    Timestamp = DateTime.UtcNow
+                }
+            )
+        },
+        {
+            typeof(ValidationException),
+            (
+                (int)HttpStatusCode.BadRequest,
+                ex => new ValidationErrorResponse
+                {
+                    Errors = ((ValidationException)ex).Errors
+                }
+            )
+        },
+        {
+            typeof(UnauthorizedException),
+            (
+                (int)HttpStatusCode.Unauthorized,
+                ex => new ErrorResponse
+                {
+                    Code = "UNAUTHORIZED",
+                    Message = ex.Message,
+                    Timestamp = DateTime.UtcNow
+                }
+            )
+        },
+        {
+            typeof(ForbiddenException),
+            (
+                (int)HttpStatusCode.Forbidden,
+                ex => new ErrorResponse
+                {
+                    Code = "FORBIDDEN",
+                    Message = ex.Message,
+                    Timestamp = DateTime.UtcNow
+                }
+            )
+        }
+    };
+
     public GlobalExceptionHandlerMiddleware(RequestDelegate next, ILogger<GlobalExceptionHandlerMiddleware> logger)
     {
         _next = next;
@@ -33,59 +83,27 @@ public class GlobalExceptionHandlerMiddleware
     {
         context.Response.ContentType = "application/json";
 
-        var response = exception switch
+        Type exceptionType = exception.GetType();
+        (int statusCode, object body) result;
+
+        if (s_HandlerTable.TryGetValue(exceptionType, out var handler))
         {
-            NotFoundException notFoundException => new
-            {
-                statusCode = (int)HttpStatusCode.NotFound,
-                body = (object)new ErrorResponse
-                {
-                    Code = "NOT_FOUND",
-                    Message = notFoundException.Message,
-                    Timestamp = DateTime.UtcNow
-                }
-            },
-            ValidationException validationException => new
-            {
-                statusCode = (int)HttpStatusCode.BadRequest,
-                body = (object)new ValidationErrorResponse
-                {
-                    Errors = validationException.Errors
-                }
-            },
-            UnauthorizedException unauthorizedException => new
-            {
-                statusCode = (int)HttpStatusCode.Unauthorized,
-                body = (object)new ErrorResponse
-                {
-                    Code = "UNAUTHORIZED",
-                    Message = unauthorizedException.Message,
-                    Timestamp = DateTime.UtcNow
-                }
-            },
-            ForbiddenException forbiddenException => new
-            {
-                statusCode = (int)HttpStatusCode.Forbidden,
-                body = (object)new ErrorResponse
-                {
-                    Code = "FORBIDDEN",
-                    Message = forbiddenException.Message,
-                    Timestamp = DateTime.UtcNow
-                }
-            },
-            _ => new
-            {
-                statusCode = (int)HttpStatusCode.InternalServerError,
-                body = (object)new ErrorResponse
+            result = (handler.statusCode, handler.body(exception));
+        }
+        else
+        {
+            result = (
+                (int)HttpStatusCode.InternalServerError,
+                new ErrorResponse
                 {
                     Code = "INTERNAL_SERVER_ERROR",
                     Message = "An unexpected error occurred",
                     Timestamp = DateTime.UtcNow
                 }
-            }
-        };
+            );
+        }
 
-        context.Response.StatusCode = response.statusCode;
+        context.Response.StatusCode = result.statusCode;
 
         var jsonOptions = new JsonSerializerOptions
         {
@@ -93,6 +111,6 @@ public class GlobalExceptionHandlerMiddleware
             WriteIndented = true
         };
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response.body, jsonOptions));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(result.body, jsonOptions));
     }
 }

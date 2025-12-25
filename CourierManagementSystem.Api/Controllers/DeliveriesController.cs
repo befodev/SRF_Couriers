@@ -4,6 +4,7 @@ using CourierManagementSystem.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
+using CourierManagementSystem.Api.Attributes;
 
 namespace CourierManagementSystem.Api.Controllers;
 
@@ -40,14 +41,10 @@ public class DeliveriesController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "manager,admin")]
+    [ExtractUserId]
     public async Task<IActionResult> CreateDelivery([FromBody] DeliveryRequest request)
     {
-        var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        if (userIdClaim == null || !long.TryParse(userIdClaim, out var userId))
-        {
-            return Unauthorized();
-        }
-
+        var userId = (long) HttpContext.Items["UserId"]!;
         var delivery = await _deliveryService.CreateDeliveryAsync(request, userId);
         return CreatedAtAction(nameof(GetDeliveryById), new { id = delivery.Id }, delivery);
     }
@@ -70,14 +67,10 @@ public class DeliveriesController : ControllerBase
 
     [HttpPost("generate")]
     [Authorize(Roles = "manager,admin")]
+    [ExtractUserId]
     public async Task<IActionResult> GenerateDeliveries([FromBody] GenerateDeliveriesRequest request)
     {
-        var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        if (userIdClaim == null || !long.TryParse(userIdClaim, out var userId))
-        {
-            return Unauthorized();
-        }
-
+        var userId = (long) HttpContext.Items["UserId"]!;
         var response = await _deliveryService.GenerateDeliveriesAsync(request, userId);
         return Ok(response);
     }

@@ -14,7 +14,8 @@ public class RouteService : IRouteService
 
     public async Task<RouteCalculationResponse> CalculateRouteAsync(RouteCalculationRequest request)
     {
-        if (request.Points == null || request.Points.Count < 2)
+        List<DeliveryPointRequest> points = request.Points;
+        if (points == null || points.Count < 2)
         {
             return new RouteCalculationResponse
             {
@@ -23,12 +24,29 @@ public class RouteService : IRouteService
             };
         }
 
-        decimal totalDistance = 0;
 
-        for (int i = 0; i < request.Points.Count - 1; i++)
+        decimal totalDistance = await CalculateTotalDistanceAsync(points);
+        int totalDurationMinutes = CalculateTotalDurationMinutes(totalDistance, points.Count);
+
+        var response = new RouteCalculationResponse
         {
-            var point1 = request.Points[i];
-            var point2 = request.Points[i + 1];
+            DistanceKm = Math.Round(totalDistance, 2),
+            DurationMinutes = totalDurationMinutes
+        };
+
+        if (totalDurationMinutes > 0)
+            response.SuggestedTime = CalculateSuggestedTime(totalDurationMinutes);
+
+        return response;
+    }
+
+    private async Task<decimal> CalculateTotalDistanceAsync(List<DeliveryPointRequest> points)
+    {
+        decimal totalDistance = 0;
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            var point1 = points[i];
+            var point2 = points[i + 1];
 
             var distance = await _openStreetMapService.CalculateDistanceAsync(
                 point1.Latitude,
@@ -39,34 +57,32 @@ public class RouteService : IRouteService
 
             totalDistance += distance;
         }
+        return totalDistance;
+    }
 
+    private int CalculateTotalDurationMinutes(decimal totalDistance, int pointCount)
+    {
         // Assuming average speed of 40 km/h in urban areas
         const decimal averageSpeedKmh = 40m;
+
         var durationHours = totalDistance / averageSpeedKmh;
         var durationMinutes = (int)Math.Ceiling(durationHours * 60);
 
         // Add 5 minutes per delivery point for loading/unloading
-        var totalDurationMinutes = durationMinutes + (request.Points.Count * 5);
+        const int minutesForLoading = 5;
+        var totalDurationMinutes = durationMinutes + (pointCount * minutesForLoading);
+        return totalDurationMinutes;
+    }
 
-        var response = new RouteCalculationResponse
+    private SuggestedTime CalculateSuggestedTime(int totalDurationMinutes)
+    {
+        var startTime = TimeOnly.FromDateTime(DateTime.Now);
+        var endTime = startTime.AddMinutes(totalDurationMinutes);
+
+        return new SuggestedTime
         {
-            DistanceKm = Math.Round(totalDistance, 2),
-            DurationMinutes = totalDurationMinutes
+            Start = startTime,
+            End = endTime
         };
-
-        // Calculate suggested time window
-        if (totalDurationMinutes > 0)
-        {
-            var startTime = TimeOnly.FromDateTime(DateTime.Now);
-            var endTime = startTime.AddMinutes(totalDurationMinutes);
-
-            response.SuggestedTime = new SuggestedTime
-            {
-                Start = startTime,
-                End = endTime
-            };
-        }
-
-        return response;
     }
 }

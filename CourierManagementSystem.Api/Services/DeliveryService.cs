@@ -1,8 +1,9 @@
+using Azure.Core;
 using CourierManagementSystem.Api.Exceptions;
 using CourierManagementSystem.Api.Models.DTOs;
-using CourierManagementSystem.Api.Models.Entities;
 using CourierManagementSystem.Api.Models.DTOs.Requests;
 using CourierManagementSystem.Api.Models.DTOs.Responses;
+using CourierManagementSystem.Api.Models.Entities;
 using CourierManagementSystem.Api.Repositories;
 
 namespace CourierManagementSystem.Api.Services;
@@ -37,43 +38,16 @@ public class DeliveryService : IDeliveryService
 
     public async Task<List<DeliveryDto>> GetAllDeliveriesAsync(DateOnly? date, long? courierId, DeliveryStatus? status)
     {
-        List<Delivery> deliveries;
+        var filter = new DeliveryFilterSpecification
+        {
+            Date = date,
+            CourierId = courierId,
+            Status = status,
+            IncludeDetails = true
+        };
 
-        if (date.HasValue && courierId.HasValue)
-        {
-            deliveries = await _deliveryRepository.GetByDeliveryDateAndCourierIdWithDetailsAsync(date.Value, courierId.Value);
-        }
-        else if (date.HasValue && status.HasValue)
-        {
-            deliveries = await _deliveryRepository.GetByDeliveryDateAndStatusWithDetailsAsync(date.Value, status.Value);
-        }
-        else if (date.HasValue)
-        {
-            deliveries = await _deliveryRepository.GetByDeliveryDateWithDetailsAsync(date.Value);
-        }
-        else if (courierId.HasValue)
-        {
-            deliveries = await _deliveryRepository.GetByCourierWithDetailsAsync(courierId.Value);
-        }
-        else if (status.HasValue)
-        {
-            deliveries = await _deliveryRepository.GetByStatusWithDetailsAsync(status.Value);
-        }
-        else
-        {
-            deliveries = await _deliveryRepository.GetAllAsync();
-            // Load details manually for all deliveries
-            var deliveryIds = deliveries.Select(d => d.Id).ToList();
-            deliveries = new List<Delivery>();
-            foreach (var id in deliveryIds)
-            {
-                var delivery = await _deliveryRepository.GetByIdWithDetailsAsync(id);
-                if (delivery != null)
-                    deliveries.Add(delivery);
-            }
-        }
-
-        return deliveries.Select(DeliveryDto.From).ToList();
+        var deliveries = await _deliveryRepository.GetByFilterAsync(filter);
+        return [.. deliveries.Select(DeliveryDto.From)];
     }
 
     public async Task<DeliveryDto> GetDeliveryByIdAsync(long id)
@@ -374,55 +348,12 @@ public class DeliveryService : IDeliveryService
 
     private async Task ValidateVehicleCapacityAsync(DeliveryRequest request, Vehicle vehicle, long? excludeDeliveryId)
     {
-        if (!request.Points.Any())
-        {
-            throw new ValidationException("Точки маршрута обязательны");
-        }
-
-        var productQuantities = new Dictionary<long, int>();
-
-        foreach (var point in request.Points)
-        {
-            foreach (var productRequest in point.Products)
-            {
-                if (productRequest.Quantity <= 0)
-                {
-                    throw new ValidationException("Количество товара должно быть положительным");
-                }
-
-                if (productQuantities.ContainsKey(productRequest.ProductId))
-                {
-                    productQuantities[productRequest.ProductId] += productRequest.Quantity;
-                }
-                else
-                {
-                    productQuantities[productRequest.ProductId] = productRequest.Quantity;
-                }
-            }
-        }
+        var productQuantities = CalculateProductQuantities(request.Points);
 
         if (productQuantities.Count == 0)
-        {
             throw new ValidationException("Товары для доставки не указаны");
-        }
 
-        decimal totalWeight = 0m;
-        decimal totalVolume = 0m;
-
-        foreach (var kvp in productQuantities)
-        {
-            var product = await _productRepository.GetByIdAsync(kvp.Key);
-            if (product == null)
-            {
-                throw new ValidationException($"Товар с ID {kvp.Key} не найден");
-            }
-
-            totalWeight += product.Weight * kvp.Value;
-            totalVolume += product.Volume * kvp.Value;
-        }
-
-        decimal existingWeight = 0m;
-        decimal existingVolume = 0m;
+        var total = await CalculateTotalWeightAndVolumeAsync(productQuantities);
 
         var overlappingDeliveries = await _deliveryRepository.GetByDateVehicleAndOverlappingTimeAsync(
             request.DeliveryDate,
@@ -431,13 +362,77 @@ public class DeliveryService : IDeliveryService
             request.TimeEnd,
             excludeDeliveryId);
 
+        var existing = await CalculateExistingWeightAndVolumeAsync(overlappingDeliveries);
+
+        var totalRequiredWeight = existing.Weight + total.Weight;
+        var totalRequiredVolume = existing.Volume + total.Volume;
+
+        if (totalRequiredWeight > vehicle.MaxWeight)
+            throw new ValidationException(
+                $"Превышена грузоподъемность машины в период {request.TimeStart}-{request.TimeEnd}. " +
+                $"Максимум: {vehicle.MaxWeight} кг, требуется: {totalRequiredWeight} кг " +
+                $"(пересекающиеся доставки: {existing.Weight} кг, новые: {total.Weight} кг)");
+
+        if (totalRequiredVolume > vehicle.MaxVolume)
+            throw new ValidationException(
+                $"Превышен объем машины в период {request.TimeStart}-{request.TimeEnd}. " +
+                $"Максимум: {vehicle.MaxVolume} м³, требуется: {totalRequiredVolume} м³ " +
+                $"(пересекающиеся доставки: {existing.Volume} м³, новые: {total.Volume} м³)");
+    }
+
+
+    private Dictionary<long, int> CalculateProductQuantities(List<DeliveryPointRequest> points)
+    {
+        if (!points.Any())
+            throw new ValidationException("Точки маршрута обязательны");
+
+        var productQuantities = new Dictionary<long, int>();
+
+        foreach (var point in points)
+        {
+            foreach (var productRequest in point.Products)
+            {
+                if (productRequest.Quantity <= 0)
+                    throw new ValidationException("Количество товара должно быть положительным");
+
+                if (productQuantities.ContainsKey(productRequest.ProductId))
+                    productQuantities[productRequest.ProductId] += productRequest.Quantity;
+                else
+                    productQuantities[productRequest.ProductId] = productRequest.Quantity;
+            }
+        }
+
+        return productQuantities;
+    }
+
+    private async Task<(decimal Weight, decimal Volume)> CalculateTotalWeightAndVolumeAsync(Dictionary<long, int> productQuantities)
+    {
+        decimal totalWeight = 0m;
+        decimal totalVolume = 0m;
+
+        foreach (var kvp in productQuantities)
+        {
+            var product = await _productRepository.GetByIdAsync(kvp.Key);
+            if (product == null)
+                throw new ValidationException($"Товар с ID {kvp.Key} не найден");
+
+            totalWeight += product.Weight * kvp.Value;
+            totalVolume += product.Volume * kvp.Value;
+        }
+
+        return (totalWeight, totalVolume);
+    }
+
+    private async Task<(decimal Weight, decimal Volume)> CalculateExistingWeightAndVolumeAsync(List<Delivery> overlappingDeliveries)
+    {
+        decimal existingWeight = 0m;
+        decimal existingVolume = 0m;
+
         foreach (var delivery in overlappingDeliveries)
         {
             var details = await _deliveryRepository.GetByIdWithDetailsAsync(delivery.Id);
             if (details == null)
-            {
                 continue;
-            }
 
             foreach (var point in details.DeliveryPoints)
             {
@@ -449,24 +444,7 @@ public class DeliveryService : IDeliveryService
             }
         }
 
-        var totalRequiredWeight = existingWeight + totalWeight;
-        var totalRequiredVolume = existingVolume + totalVolume;
-
-        if (totalRequiredWeight > vehicle.MaxWeight)
-        {
-            throw new ValidationException(
-                $"Превышена грузоподъемность машины в период {request.TimeStart}-{request.TimeEnd}. " +
-                $"Максимум: {vehicle.MaxWeight} кг, требуется: {totalRequiredWeight} кг " +
-                $"(пересекающиеся доставки: {existingWeight} кг, новые: {totalWeight} кг)");
-        }
-
-        if (totalRequiredVolume > vehicle.MaxVolume)
-        {
-            throw new ValidationException(
-                $"Превышен объем машины в период {request.TimeStart}-{request.TimeEnd}. " +
-                $"Максимум: {vehicle.MaxVolume} м³, требуется: {totalRequiredVolume} м³ " +
-                $"(пересекающиеся доставки: {existingVolume} м³, новые: {totalVolume} м³)");
-        }
+        return (existingWeight, existingVolume);
     }
 
     private async Task CreateDeliveryPointsAsync(long deliveryId, List<DeliveryPointRequest> points)
